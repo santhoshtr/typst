@@ -932,6 +932,11 @@ fn lang_at(p: &Preparation, offset: usize) -> Option<hypher::Lang> {
         Some(styles.get(TextElem::lang))
     })?;
 
+    hypher_lang(lang)
+}
+
+/// Converts a typst [`Lang`] to a [`hypher::Lang`], if supported.
+pub(super) fn hypher_lang(lang: Lang) -> Option<hypher::Lang> {
     let bytes = lang.as_str().as_bytes().try_into().ok()?;
     hypher::Lang::from_iso(bytes)
 }

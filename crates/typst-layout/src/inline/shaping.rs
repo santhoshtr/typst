@@ -6,28 +6,23 @@ use std::sync::Arc;
 use az::SaturatingAs;
 use comemo::Tracked;
 use rustybuzz::{BufferFlags, Feature, ShapePlan, UnicodeBuffer};
-use ttf_parser::Tag;
 use ttf_parser::gsub::SubstitutionSubtable;
-use typst_library::World;
+use ttf_parser::Tag;
 use typst_library::engine::Engine;
 use typst_library::foundations::{Regex, Smart, StyleChain};
 use typst_library::layout::{Abs, Dir, Em, Frame, FrameItem, Point, Rel, Size};
 use typst_library::model::{JustificationLimits, ParElem};
 use typst_library::text::{
-    Font, FontFamily, FontVariant, Glyph, Lang, Region, ShiftSettings, TextEdgeBounds,
-    TextElem, TextItem, families, features, is_default_ignorable, language, variant,
+    families, features, is_default_ignorable, language, variant, Font, FontFamily,
+    FontVariant, Glyph, Lang, Region, ShiftSettings, TextEdgeBounds, TextElem, TextItem,
 };
+use typst_library::World;
 use typst_utils::SliceExt;
 use unicode_bidi::{BidiInfo, Level as BidiLevel};
 use unicode_script::{Script, UnicodeScript};
 
-use super::{Item, Range, SpanMapper, decorate};
+use super::{decorate, Item, Range, SpanMapper};
 use crate::modifiers::FrameModifyText;
-
-const SHY: char = '\u{ad}';
-const SHY_STR: &str = "\u{ad}";
-const HYPHEN: char = '-';
-const HYPHEN_STR: &str = "-";
 
 /// The result of shaping text.
 ///
@@ -575,17 +570,22 @@ impl<'a> ShapedText<'a> {
         Self { text: "", glyphs: Glyphs::from_slice(&[]), ..*self }
     }
 
-    /// Creates shaped text containing a hyphen.
+    /// Creates shaped text containing a hyphenation character.
     ///
-    /// If `soft` is true, the item will map to plain text as a soft hyphen.
-    /// Otherwise, it will map to a normal hyphen.
+    /// `hyphenation_character` is the language-specific character to render at
+    /// the break point. Pass `'\u{ad}'` (soft hyphen) or `'-'` (hard hyphen).
     pub fn hyphen(
         engine: &Engine,
         fallback: bool,
         base: &ShapedText<'a>,
         pos: usize,
-        soft: bool,
+        hyphenation_character: char,
     ) -> Option<Self> {
+        let text: &'static str = match hyphenation_character {
+            '\u{ad}' => "\u{ad}",
+            _ => "-",
+        };
+
         let world = engine.world;
         let book = world.book();
         let fallback_func = if fallback {
@@ -605,7 +605,6 @@ impl<'a> ShapedText<'a> {
             let glyph_id = ttf.glyph_index('-')?;
             let x_advance = font.to_em(ttf.glyph_hor_advance(glyph_id)?);
             let size = base.styles.resolve(TextElem::size);
-            let (c, text) = if soft { (SHY, SHY_STR) } else { (HYPHEN, HYPHEN_STR) };
 
             Some(ShapedText {
                 base: pos,
@@ -625,7 +624,7 @@ impl<'a> ShapedText<'a> {
                     adjustability: Adjustability::default(),
                     range: pos..pos + text.len(),
                     safe_to_break: true,
-                    c,
+                    c: hyphenation_character,
                     is_justifiable: false,
                     script: Script::Common,
                 }]),
@@ -662,7 +661,11 @@ impl<'a> ShapedText<'a> {
         // Find any glyph with the text index.
         let found = self.glyphs.binary_search_by(|g: &ShapedGlyph| {
             let ordering = g.range.start.cmp(&text_index);
-            if ltr { ordering } else { ordering.reverse() }
+            if ltr {
+                ordering
+            } else {
+                ordering.reverse()
+            }
         });
 
         let mut idx = match found {

@@ -10,7 +10,7 @@ use typst_library::text::{Lang, TextElem, variant};
 use typst_utils::Numeric;
 
 use super::*;
-use crate::inline::linebreak::Trim;
+use crate::inline::linebreak::{Trim, hypher_lang};
 use crate::inline::shaping::Adjustability;
 use crate::modifiers::layout_and_modify;
 
@@ -161,8 +161,14 @@ pub fn line<'a>(
         && pred.dash == Some(Dash::Hard)
         && let Some(base) = pred.items.trailing_text()
         && should_repeat_hyphen(base.lang, full)
-        && let Some(hyphen) =
-            ShapedText::hyphen(engine, p.config.fallback, base, trim.shaping, false)
+        && let Some(c) = hyphenation_char_for(base.lang, false)
+        && let Some(hyphen) = ShapedText::hyphen(
+            engine,
+            p.config.fallback,
+            base,
+            trim.shaping,
+            c,
+        )
     {
         items.push(Item::Text(hyphen), LogicalIndex::START_HYPHEN);
     }
@@ -172,8 +178,14 @@ pub fn line<'a>(
     // Add a hyphen at the line end, if we ended on a soft hyphen.
     if dash == Some(Dash::Soft)
         && let Some(base) = items.trailing_text()
-        && let Some(hyphen) =
-            ShapedText::hyphen(engine, p.config.fallback, base, trim.shaping, true)
+        && let Some(c) = hyphenation_char_for(base.lang, true)
+        && let Some(hyphen) = ShapedText::hyphen(
+            engine,
+            p.config.fallback,
+            base,
+            trim.shaping,
+            c,
+        )
     {
         items.push(Item::Text(hyphen), LogicalIndex::END_HYPHEN);
     }
@@ -448,6 +460,20 @@ fn should_repeat_hyphen(lang: Lang, following_text: &str) -> bool {
         Lang::SPANISH => following_text.chars().next().is_some_and(|c| !c.is_uppercase()),
 
         _ => false,
+    }
+}
+
+/// Returns the language-specific hyphenation character for `lang`.
+///
+/// `soft` distinguishes the two contexts: `true` for a soft-hyphen line break
+/// (end of line), `false` for a repeated hard hyphen (start of next line).
+/// Returns `None` for languages (e.g. Indic scripts) where no visual hyphen
+/// is inserted. Falls back to the conventional character for each context when
+/// the language is not supported by hypher.
+fn hyphenation_char_for(lang: Lang, soft: bool) -> Option<char> {
+    match hypher_lang(lang) {
+        Some(l) => l.hyphenation_character(),
+        None => Some(if soft { SHY } else { HYPHEN }),
     }
 }
 

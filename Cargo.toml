@@ -67,7 +67,7 @@ hayro = { version = "0.4.0", default-features = false }
 hayro-svg = { version = "0.2.0", default-features = false }
 hayro-syntax = "0.4.0"
 heck = "0.5"
-hypher = "0.1.4"
+hypher = "0.1.7"
 icu_properties = { version = "1.4", features = ["serde"] }
 icu_provider = { version = "1.4", features = ["sync"] }
 icu_provider_adapters = "1.4"
